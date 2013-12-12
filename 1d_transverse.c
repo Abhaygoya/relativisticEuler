@@ -12,6 +12,7 @@ double dx, dt, currentTime;
 struct vector {
 	double mass;
 	double mom;
+	double momT;
 	double ene;
 };
 
@@ -21,7 +22,6 @@ struct primitive {
 	double eps;
 	double p;
 	double W;
-	//Transverse velocity. Does it change?
 	double v_trans;
 };
 
@@ -40,34 +40,37 @@ double getW(int i, struct primitive * P){
 	return W;
 }
 
-void initialize(struct vector * U, struct primitive * P){
-	int i;
-	for(i=0; i<N; i++){
-		//Get x value, determine U and F based on x. All calculated from initial vars rho, p, v, and gam
-		double pos = getx(i);
-		if(pos<0.){
-			P[i].rho = 1.0;
-			P[i].v = 0.0;
-			P[i].v_trans = 0.0;
-			P[i].W=getW(i,P);
-			P[i].p = 1000.0;
-			P[i].eps = P[i].p/((gam-1.)*P[i].rho);
-			
-		}
-		else{
-			P[i].rho = 1.0;
-			P[i].v = 0.0;
-			P[i].v_trans = 0.99;
-			P[i].W=getW(i,P);
-			P[i].p = 0.01;
-			P[i].eps = P[i].p/((gam-1.)*P[i].rho);
-		}
-		U[i].mass=P[i].rho*P[i].W;
-		double h = 1.+P[i].eps+P[i].p/P[i].rho;
-		U[i].mom=P[i].rho*h*pow(P[i].W,2)*P[i].v;
-		U[i].ene=P[i].rho*h*pow(P[i].W,2)-P[i].p-U[i].mass;
+double geth(int i, struct primitive * P){
+	double h = 1.+P[i].eps+P[i].p/P[i].rho;
+	return h;
+}
+
+void initialize(struct vector * U, struct primitive * P, int i){
+	//Get x value, determine U and F based on x. All calculated from initial vars rho, p, v, and gam
+	double pos = getx(i);
+	if(pos<0.){
+		P[i].rho = 1.0;
+		P[i].v = 0.0;
+		P[i].v_trans = 0.0;
+		P[i].W=getW(i,P);
+		P[i].p = 1000.0;
+		P[i].eps = P[i].p/((gam-1.)*P[i].rho);
 		
 	}
+	else{
+		P[i].rho = 1.0;
+		P[i].v = 0.0;
+		P[i].v_trans = 0.99;
+		P[i].W=getW(i,P);
+		P[i].p = 0.01;
+		P[i].eps = P[i].p/((gam-1.)*P[i].rho);
+	}
+	U[i].mass=P[i].rho*P[i].W;
+	double h = geth(i,P);
+	U[i].mom=P[i].rho*h*pow(P[i].W,2)*P[i].v;
+	U[i].momT=P[i].rho*h*pow(P[i].W,2)*P[i].v_trans;
+	U[i].ene=P[i].rho*h*pow(P[i].W,2)-P[i].p-U[i].mass;
+
 }
 
 void updateF(struct vector * U, struct vector * F, struct primitive * P){
@@ -75,35 +78,9 @@ void updateF(struct vector * U, struct vector * F, struct primitive * P){
 	for(i=0;i<N;i++){
 		F[i].mass = U[i].mass*P[i].v;
 		F[i].mom = U[i].mom*P[i].v+P[i].p;
+		F[i].momT = U[i].momT*P[i].v;
 		F[i].ene = U[i].mom-U[i].mass*P[i].v;
 	}
-}
-
-void fixed_bcs(struct vector * U, struct vector * F, struct primitive * P){
-	P[0].rho = 1.0;
-	P[0].v = 0.0;
-	P[0].W=getW(0,P);
-	P[0].p = 1000.0;
-	P[0].eps = P[0].p/((gam-1.)*P[0].rho);
-	
-	U[0].mass=P[0].rho*P[0].W;
-	double h = 1.+P[0].eps+P[0].p/P[0].rho;
-	U[0].mom=P[0].rho*h*pow(P[0].W,2)*P[0].v;
-	U[0].ene=P[0].rho*h*pow(P[0].W,2)-P[0].p-U[0].mass;
-	
-	P[N-1].rho = 1.0;
-	P[N-1].v = 0.0;
-	P[N-1].W=getW(N-1,P);
-	P[N-1].p = 0.01;
-	P[N-1].eps = P[N-1].p/((gam-1.)*P[N-1].rho);
-	
-	U[N-1].mass=P[N-1].rho*P[N-1].W;
-	h = 1.+P[N-1].eps+P[N-1].p/P[N-1].rho;
-	U[N-1].mom=P[N-1].rho*h*pow(P[N-1].W,2)*P[N-1].v;
-	U[N-1].ene=P[N-1].rho*h*pow(P[N-1].W,2)-P[N-1].p-U[N-1].mass;
-	
-	
-	
 }
 
 double max(double a, double b){
@@ -135,6 +112,7 @@ struct vector getFlux(int i, struct vector * U, struct vector * F, struct primit
 	struct vector fhll;
 	fhll.mass = (alpha_plus*F[i].mass-alpha_minus*F[i+1].mass+alpha_plus*alpha_minus*(U[i+1].mass-U[i].mass))/(alpha_plus-alpha_minus);
 	fhll.mom = (alpha_plus*F[i].mom-alpha_minus*F[i+1].mom+alpha_plus*alpha_minus*(U[i+1].mom-U[i].mom))/(alpha_plus-alpha_minus);
+	fhll.momT = (alpha_plus*F[i].momT-alpha_minus*F[i+1].momT+alpha_plus*alpha_minus*(U[i+1].momT-U[i].momT))/(alpha_plus-alpha_minus);
 	fhll.ene = (alpha_plus*F[i].ene-alpha_minus*F[i+1].ene+alpha_plus*alpha_minus*(U[i+1].ene-U[i].ene))/(alpha_plus-alpha_minus);
 	
 	return fhll;
@@ -146,10 +124,11 @@ void updatePrimitive(struct vector * U, struct primitive * P){
 	for(i=0;i<N;i++){
 		double delta = 10;
 		P[i].p=10.0;
-		while(fabs(delta)>.0000000000001){
+		while(fabs(delta)>.00000001){
 			//Sets a minimum value for P so NR doesn't choose an impossible guess
 			if(P[i].p<(fabs(U[i].mom)-U[i].ene-U[i].mass)) P[i].p=fabs(U[i].mom)-U[i].ene-U[i].mass;
 			P[i].v=U[i].mom/(U[i].ene+U[i].mass+P[i].p);
+			P[i].v_trans=U[i].momT/(U[i].ene+U[i].mass+P[i].p);
 			P[i].W=getW(i,P);
 
 			P[i].rho=U[i].mass/P[i].W;
@@ -163,6 +142,7 @@ void updatePrimitive(struct vector * U, struct primitive * P){
 		}
 		//To re-update other prim vars after final p is found
 		P[i].v=U[i].mom/(U[i].ene+U[i].mass+P[i].p);
+		P[i].v_trans=U[i].momT/(U[i].ene+U[i].mass+P[i].p);
 		P[i].W=getW(i,P);
 		P[i].rho=U[i].mass/P[i].W;
 		P[i].eps=(U[i].ene+U[i].mass*(1.-P[i].W)+P[i].p*(1.+pow(P[i].W,2)))/(U[i].mass*P[i].W);
@@ -179,14 +159,18 @@ void advanceTime(struct vector * U, struct vector * F, struct primitive * P){
 	for(i=0;i<N-1;i++){
 		U[i].mass -= dt*Fiph[i].mass/dx;
 		U[i].mom -= dt*Fiph[i].mom/dx;
+		U[i].momT -= dt*Fiph[i].momT/dx;
 		U[i].ene -= dt*Fiph[i].ene/dx;
 		U[i+1].mass += dt*Fiph[i].mass/dx;
 		U[i+1].mom += dt*Fiph[i].mom/dx;
+		U[i+1].momT += dt*Fiph[i].momT/dx;
 		U[i+1].ene += dt*Fiph[i].ene/dx;
 	}
 	
 	updatePrimitive(U,P); 
-	fixed_bcs(U,F,P);
+	//fixed_bcs(U,F,P);
+	initialize(U,P,0);
+	initialize(U,P,N-1);
 	updateF(U,F,P);
 
 }
@@ -199,21 +183,27 @@ int main(){
 	//Loop through different N's, advancing to time t=.25, and output
 	N = 500;
 	while(N<501){
-		dt = time/(10*N);
+		dt = time/(8*N);
 		dx = length/N;
 	
 		struct vector U[N];
 		struct vector F[N];
 		struct primitive P[N];
 	
-		initialize(U,P);
+		int i;
+		for(i=0;i<N;i++) initialize(U,P,i);
+		
 		updateF(U,F,P);
 	
 	
 		currentTime=0.;
-		while(currentTime<.000001){
+		while(currentTime<time){
 			advanceTime(U,F,P);
 			currentTime += dt;
+			if(isnan(P[250].rho)==1){
+				printf("%f\n",currentTime);
+				break;
+			}
 		}
 		
 		FILE* f;
@@ -222,7 +212,6 @@ int main(){
 		strcat(string,".txt");
 		f = fopen(string,"w");
 		
-		int i;
 		for(i=0;i<N;i++) fprintf(f,"%15.15f     %15.15f       %15.15f    %15.15f    %15.15f\n", getx(i),P[i].rho,P[i].v,P[i].p,P[i].eps);
 		//for(i=0;i<N;i++) fprintf(f,"%15.15f     %15.15f       %15.15f    %15.15f    %15.15f\n", getx(i),P[i].rho,P[i].W,P[i].p,P[i].v);
 		
