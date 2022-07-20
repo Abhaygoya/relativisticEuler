@@ -5,7 +5,7 @@ Computational Physics Final Project; Relativistic Hydrodynamics
 
 Final project for class.
 
-I chose to advance my Euler code to account for relativistic factors, because it's really damn cool.
+I chose to advance my Euler code to account for relativistic factors, because it's an interesting application of hydrodynamics to astrophysics.
 
 All the equations change, but the main difficulty is that we need to account for the variables being coupled due to the Lorentz factor.
 This creates problems in solving for the primitive variables.
